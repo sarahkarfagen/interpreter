@@ -1,6 +1,7 @@
-#include <lib/interpreter.h>
 #include <gtest/gtest.h>
+#include <itmoscript/interpreter.h>
 
+using namespace itmoscript;
 
 TEST(TypesTestSuite, IntTest) {
     std::string code = R"(

@@ -1,5 +1,7 @@
-#include <lib/interpreter.h>
 #include <gtest/gtest.h>
+#include <itmoscript/interpreter.h>
+
+using namespace itmoscript;
 
 TEST(BranchTestSuite, SimpleIfTest) {
     std::string code = R"(
@@ -37,7 +39,6 @@ TEST(BranchTestSuite, SimpleElseIfTest) {
     ASSERT_EQ(output.str(), expected);
 }
 
-
 TEST(BranchTestSuite, ComplexIfTest) {
     std::string code = R"(
         v = 100 * 2 + 10 * 3 + 9
@@ -61,9 +62,9 @@ TEST(BranchTestSuite, ComplexIfTest) {
     ASSERT_EQ(output.str(), expected);
 }
 
-
 TEST(BranchTestSuite, OneLineIfTest) {
-    std::string code = "if 2 * 2 == 4 then print(\"2 * 2 == 4\") else print(\"omg\") end if";
+    std::string code =
+        "if 2 * 2 == 4 then print(\"2 * 2 == 4\") else print(\"omg\") end if";
     std::string expected = "\"2 * 2 == 4\"";
 
     std::istringstream input(code);
@@ -72,7 +73,6 @@ TEST(BranchTestSuite, OneLineIfTest) {
     ASSERT_TRUE(interpret(input, output));
     ASSERT_EQ(output.str(), expected);
 }
-
 
 TEST(LoopTestSuit, ForLoop) {
     std::string code = R"(
@@ -89,7 +89,6 @@ TEST(LoopTestSuit, ForLoop) {
     ASSERT_TRUE(interpret(input, output));
     ASSERT_EQ(output.str(), expected);
 }
-
 
 TEST(LoopTestSuit, WhileLoop) {
     std::string code = R"(

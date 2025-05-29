@@ -1,5 +1,7 @@
-#include <lib/interpreter.h>
 #include <gtest/gtest.h>
+#include <itmoscript/interpreter.h>
+
+using namespace itmoscript;
 
 TEST(FunctionTestSuite, SimpleFunctionTest) {
     std::string code = R"(
@@ -19,7 +21,6 @@ TEST(FunctionTestSuite, SimpleFunctionTest) {
     ASSERT_TRUE(interpret(input, output));
     ASSERT_EQ(output.str(), expected);
 }
-
 
 TEST(FunctionTestSuite, FunctionAsArgTest) {
     std::string code = R"(
@@ -43,7 +44,6 @@ TEST(FunctionTestSuite, FunctionAsArgTest) {
     ASSERT_TRUE(interpret(input, output));
     ASSERT_EQ(output.str(), expected);
 }
-
 
 TEST(FunctionTestSuite, NestedFunctionTest) {
     std::string code = R"(
@@ -69,7 +69,6 @@ TEST(FunctionTestSuite, NestedFunctionTest) {
     ASSERT_TRUE(interpret(input, output));
     ASSERT_EQ(output.str(), expected);
 }
-
 
 TEST(FunctionTestSuite, FunnySyntaxTest) {
     std::string code = R"(

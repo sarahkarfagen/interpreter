@@ -1,20 +1,16 @@
+#include <gtest/gtest.h>
+#include <itmoscript/interpreter.h>
+
 #include <string>
 #include <vector>
 
-#include <lib/interpreter.h>
-#include <gtest/gtest.h>
-
+using namespace itmoscript;
 
 std::string kUnreachable = "239";
 
-
 TEST(IllegalOperationsSuite, TypeMixing) {
     std::vector<std::string> values = {
-        "123",
-        "\"string\"",
-        "[1, 2, 3]",
-        "function() end function",
-        "nil",
+        "123", "\"string\"", "[1, 2, 3]", "function() end function", "nil",
     };
 
     for (int a = 0; a < values.size(); ++a) {
@@ -32,7 +28,6 @@ TEST(IllegalOperationsSuite, TypeMixing) {
         }
     }
 }
-
 
 TEST(IllegalOperationsSuite, ArgumentCountMismatch) {
     std::string code = R"(
