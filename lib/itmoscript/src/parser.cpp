@@ -96,6 +96,7 @@ ASTNodePtr Parser::parseAssignment() {
 ASTNodePtr Parser::parseFunctionCall() {
     auto id = get();
     auto node = std::make_unique<ASTNode>(NodeType::FunctionCall, id.lexeme);
+    node->addChild(std::make_unique<ASTNode>(NodeType::Identifier, id.lexeme));
     expect(TokenType::LeftParen, "Expected '('");
     if (!check(TokenType::RightParen)) node->addChild(parseArgumentList());
     expect(TokenType::RightParen, "Expected ')'");
@@ -295,6 +296,7 @@ ASTNodePtr Parser::parsePostfix(ASTNodePtr lhs) {
         } else if (match(TokenType::LeftParen)) {
             auto callNode =
                 std::make_unique<ASTNode>(NodeType::FunctionCall, lhs->value);
+            callNode->addChild(std::move(lhs));
             if (!check(TokenType::RightParen))
                 callNode->addChild(parseArgumentList());
             expect(TokenType::RightParen, "Expected ')' after arguments");
@@ -332,11 +334,17 @@ ASTNodePtr Parser::parsePrimary() {
     }
     if (match(TokenType::LeftBracket)) {
         auto l = std::make_unique<ASTNode>(NodeType::ListLiteral);
-        if (!check(TokenType::RightBracket)) {
+
+        while (!check(TokenType::RightBracket)) {
             l->addChild(parseExpression());
-            while (match(TokenType::Comma)) l->addChild(parseExpression());
+
+            if (match(TokenType::Comma)) {
+                if (check(TokenType::RightBracket)) break;
+            } else {
+                break;
+            }
         }
-        expect(TokenType::RightBracket, "]");
+        expect(TokenType::RightBracket, "Expected ']' after list literal");
         return parsePostfix(std::move(l));
     }
     if (match(TokenType::Identifier)) {
@@ -358,10 +366,13 @@ ASTNodePtr Parser::parseLiteral() {
     }
     if (match(TokenType::LeftBracket)) {
         auto listNode = std::make_unique<ASTNode>(NodeType::ListLiteral);
-        if (!check(TokenType::RightBracket)) {
+        while (!check(TokenType::RightBracket)) {
             listNode->addChild(parseExpression());
-            while (match(TokenType::Comma))
-                listNode->addChild(parseExpression());
+            if (match(TokenType::Comma)) {
+                if (check(TokenType::RightBracket)) break;
+            } else {
+                break;
+            }
         }
         expect(TokenType::RightBracket, "Expected ']' after list literal");
         return listNode;

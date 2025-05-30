@@ -211,14 +211,14 @@ class Builder {
 
     ExecNodePtr makeFuncCall(const ASTNode* p) {
         struct FC : ExecNode {
-            std::string fname;
+            ExecNodePtr expr;
             std::vector<ExecNodePtr> args;
-            FC(std::string f, std::vector<ExecNodePtr> a)
-                : fname(std::move(f)), args(std::move(a)) {}
+            FC(ExecNodePtr e, std::vector<ExecNodePtr> a)
+                : expr(std::move(e)), args(std::move(a)) {}
             Value execute(Environment& env) override {
-                auto fval = env.get(fname);
+                auto fval = expr->execute(env);
                 if (fval.type() != Value::Type::Function)
-                    type_error("Not a function: " + fname);
+                    type_error("Not a function: " + fval.toString());
                 std::vector<Value> avals;
                 avals.reserve(args.size());
                 for (auto& a : args) avals.push_back(a->execute(env));
@@ -226,11 +226,12 @@ class Builder {
             }
         };
         std::vector<ExecNodePtr> args;
-        if (!p->children.empty()) {
-            for (auto& c0 : p->children[0]->children)
+        if (p->children.size() > 1) {
+            for (auto& c0 : p->children[1]->children)
                 args.push_back(buildNode(c0.get()));
         }
-        return std::make_unique<FC>(p->value, std::move(args));
+        return std::make_unique<FC>(buildNode(p->children[0].get()),
+                                    std::move(args));
     }
 
     ExecNodePtr makeReturn(const ASTNode* p) {
