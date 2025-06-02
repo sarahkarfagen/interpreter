@@ -42,11 +42,20 @@ ASTNodePtr Parser::parseProgram() {
 
 ASTNodePtr Parser::parseStatementList() {
     auto list = std::make_unique<ASTNode>(NodeType::StatementList);
+
+    while (match(TokenType::NewLine)) {
+        ;
+    }
+
     while (!check(TokenType::End) && !check(TokenType::Else) &&
-           !check(TokenType::EndOfFile) && !check(TokenType::Else) &&
            !check(TokenType::EndOfFile)) {
         list->addChild(parseStatement());
+
+        while (match(TokenType::NewLine)) {
+            ;
+        }
     }
+
     return list;
 }
 
@@ -310,20 +319,22 @@ ASTNodePtr Parser::parsePostfix(ASTNodePtr lhs) {
 ASTNodePtr Parser::parsePrimary() {
     if (match(TokenType::Function)) {
         auto n = std::make_unique<ASTNode>(NodeType::FunctionDefinition);
-        expect(TokenType::LeftParen, "(");
+        expect(TokenType::LeftParen, "Expected '(' after 'function'");
         if (!check(TokenType::RightParen)) n->addChild(parseParameterList());
-        expect(TokenType::RightParen, ")");
+        expect(TokenType::RightParen, "Expected ')'");
         n->addChild(parseStatementList());
         if (check(TokenType::Return)) n->addChild(parseReturn());
-        expect(TokenType::End, "end");
-        expect(TokenType::Function, "function");
+        expect(TokenType::End, "Expected 'end'");
+        expect(TokenType::Function, "Expected 'function'");
         return n;
     }
+
     if (match(TokenType::LeftParen)) {
         auto n = parseExpression();
-        expect(TokenType::RightParen, ")");
+        expect(TokenType::RightParen, "Expected ')'");
         return parsePostfix(std::move(n));
     }
+
     if (match(TokenType::Number) || match(TokenType::String) ||
         match(TokenType::Boolean) || match(TokenType::Nil)) {
         auto t = tokens_[index_ - 1];
@@ -332,27 +343,45 @@ ASTNodePtr Parser::parsePrimary() {
         if (t.type == TokenType::Nil) vt = NodeType::Nil;
         return std::make_unique<ASTNode>(vt, t.lexeme);
     }
+
     if (match(TokenType::LeftBracket)) {
         auto l = std::make_unique<ASTNode>(NodeType::ListLiteral);
 
-        while (!check(TokenType::RightBracket)) {
+        while (true) {
+            while (match(TokenType::NewLine)) {
+                ;
+            }
+
+            if (check(TokenType::RightBracket)) break;
+
             l->addChild(parseExpression());
 
+            while (match(TokenType::NewLine)) {
+                ;
+            }
+
             if (match(TokenType::Comma)) {
-                if (check(TokenType::RightBracket)) break;
+                if (check(TokenType::RightBracket))
+                    break;
+                else
+                    continue;
             } else {
                 break;
             }
         }
+
         expect(TokenType::RightBracket, "Expected ']' after list literal");
         return parsePostfix(std::move(l));
     }
+
     if (match(TokenType::Identifier)) {
         auto t = tokens_[index_ - 1];
         return parsePostfix(
             std::make_unique<ASTNode>(NodeType::Identifier, t.lexeme));
     }
-    throw ParseError("unexpected" + peek().lexeme);
+
+    throw ParseError("Unexpected token '" + peek().lexeme + "' at line " +
+                     std::to_string(peek().line));
 }
 
 ASTNodePtr Parser::parseLiteral() {

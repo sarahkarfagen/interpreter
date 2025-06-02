@@ -32,9 +32,21 @@ Lexer::Lexer(const std::string& source) noexcept : source_(source) {}
 std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
     while (pos_ < source_.size()) {
-        skipWhitespace();
-        if (pos_ >= source_.size()) break;
         char c = peek();
+
+        if (c == '\n') {
+            int start_col = column_;
+            get();
+
+            tokens.push_back({TokenType::NewLine, "\\n", line_ - 1, start_col});
+            continue;
+        }
+
+        if (std::isspace(c)) {
+            skipWhitespace();
+            continue;
+        }
+
         if (std::isalpha(c) || c == '_') {
             tokens.push_back(identifier());
         } else if (std::isdigit(c)) {
@@ -153,7 +165,14 @@ bool Lexer::match(char expected) noexcept {
 }
 
 void Lexer::skipWhitespace() {
-    while (pos_ < source_.size() && std::isspace(peek())) get();
+    while (pos_ < source_.size()) {
+        char c = peek();
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v') {
+            get();
+        } else {
+            break;
+        }
+    }
 }
 
 void Lexer::skipComment() {

@@ -14,8 +14,11 @@ enable_testing()
 
 add_executable(
   itmoscript_tests
+  # basic_test.cpp
+  stdlib_test.cpp
   function_test.cpp
   types_test.cpp
+  illegal_ops_test.cpp
   loop_and_branch_test.cpp
 )
 

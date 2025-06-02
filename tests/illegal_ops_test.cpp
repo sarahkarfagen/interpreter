@@ -15,7 +15,7 @@ TEST(IllegalOperationsSuite, TypeMixing) {
 
     for (int a = 0; a < values.size(); ++a) {
         for (int b = a + 1; b < values.size(); ++b) {
-            std::istringstream input;
+            std::stringstream input;
             input << "a = " << values[a] << "\n";
             input << "b = " << values[b] << "\n";
             input << "c = a + b" << "\n";
@@ -36,6 +36,20 @@ TEST(IllegalOperationsSuite, ArgumentCountMismatch) {
         func(1, 2)
 
         print(239) // unreachable
+    )";
+
+    std::istringstream input(code);
+    std::ostringstream output;
+
+    ASSERT_FALSE(interpret(input, output));
+    ASSERT_FALSE(output.str().ends_with(kUnreachable));
+}
+
+TEST(IllegalOperationsSuite, MultiLineStatement) {
+    std::string code = R"(
+        mass =
+            s = 1
+            print(239)  // unreachable
     )";
 
     std::istringstream input(code);

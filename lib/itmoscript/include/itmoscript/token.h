@@ -54,6 +54,7 @@ enum class TokenType {
     Or,
     Not,
 
+    NewLine,
     EndOfFile,
     Unknown
 };
