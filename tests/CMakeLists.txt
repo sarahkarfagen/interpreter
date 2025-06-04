@@ -20,6 +20,12 @@ add_executable(
   types_test.cpp
   illegal_ops_test.cpp
   loop_and_branch_test.cpp
+  #codeforces_test.cpp
+)
+
+target_compile_definitions(itmoscript_tests
+    PRIVATE
+        PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 target_link_libraries(

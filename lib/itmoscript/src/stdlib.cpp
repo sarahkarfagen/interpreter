@@ -1,5 +1,3 @@
-
-
 #include "itmoscript/stdlib.h"
 
 #include <algorithm>
@@ -20,7 +18,7 @@ void registerStandardLibrary(Environment::Builder& eb) {
     eb.addGlobal(
         "print",
         Value::makeFunction([](auto const& args, Environment& env) -> Value {
-            for (auto const& v : args) {
+            for (const auto& v : args) {
                 if (v.type() == Value::Type::String) {
                     const auto& s = v.asString();
 
@@ -34,6 +32,52 @@ void registerStandardLibrary(Environment::Builder& eb) {
                 }
             }
             return Value::makeNil();
+        }));
+
+    eb.addGlobal(
+        "println",
+        Value::makeFunction([](auto const& args, Environment& env) -> Value {
+            for (const auto& v : args) {
+                if (v.type() == Value::Type::String) {
+                    const auto& s = v.asString();
+                    if (s.find_first_of(" \t\n") != std::string::npos) {
+                        env.out() << '"' << s << '"';
+                    } else {
+                        env.out() << s;
+                    }
+                } else {
+                    env.out() << v.toString();
+                }
+            }
+            env.out() << "\n";
+            return Value::makeNil();
+        }));
+
+    eb.addGlobal("read", Value::makeFunction([](auto const& args,
+                                                Environment& env) -> Value {
+                     if (!args.empty()) {
+                         throw std::runtime_error("read expects 0 args");
+                     }
+                     std::string line;
+                     if (!std::getline(env.in(), line)) {
+                         return Value::makeNil();
+                     }
+                     return Value::makeString(line);
+                 }));
+
+    eb.addGlobal(
+        "stacktrace",
+        Value::makeFunction([](auto const& args, Environment& env) -> Value {
+            if (!args.empty()) {
+                throw std::runtime_error("stacktrace expects 0 args");
+            }
+            const auto& st = env.getCallStack();
+            std::vector<Value> outList;
+            outList.reserve(st.size());
+            for (const auto& fnName : st) {
+                outList.push_back(Value::makeString(fnName));
+            }
+            return Value::makeList(std::move(outList));
         }));
 
     eb.addGlobal("range", Value::makeFunction([](auto const& args,

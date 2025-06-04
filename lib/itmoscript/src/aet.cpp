@@ -1,4 +1,3 @@
-
 #include "itmoscript/aet.h"
 
 #include <cmath>
@@ -275,40 +274,14 @@ class Builder {
     }
 
     AETNodePtr makeLambda(const ASTNode* p) {
-        struct Lambda : AETNode {
-            std::vector<std::string> params;
-            AETNodePtr body;
-            Lambda(std::vector<std::string> ps, AETNodePtr b)
-                : params(std::move(ps)), body(std::move(b)) {}
-            Value execute(Environment& env) override {
-                Value::FuncType fn = [params = this->params,
-                                      body = this->body.get()](
-                                         const std::vector<Value>& args,
-                                         Environment& env) -> Value {
-                    if (args.size() != params.size())
-                        throw std::runtime_error("Argument count mismatch");
-                    env.pushFrame();
-                    for (size_t i = 0; i < params.size(); ++i) {
-                        env.set(params[i], args[i]);
-                    }
-                    try {
-                        body->execute(env);
-                    } catch (ReturnException& re) {
-                        env.popFrame();
-                        return re.value;
-                    }
-                    env.popFrame();
-                    return Value::makeNil();
-                };
-                return Value::makeFunction(std::move(fn));
-            }
-        };
+        std::string fnName = p->value;
 
-        std::vector<std::string> ps;
+        std::vector<std::string> params;
         size_t idx = 0;
-        if (p->children[idx]->type == NodeType::ParameterList) {
+        if (!p->children.empty() &&
+            p->children[idx]->type == NodeType::ParameterList) {
             for (auto& c : p->children[idx]->children) {
-                ps.push_back(c->value);
+                params.push_back(c->value);
             }
             ++idx;
         }
@@ -323,16 +296,72 @@ class Builder {
                 return Value::makeNil();
             }
         };
-
         std::vector<AETNodePtr> parts;
+
         parts.push_back(buildNode(p->children[idx].get()));
+
         if (idx + 1 < p->children.size() &&
             p->children[idx + 1]->type == NodeType::Return) {
             parts.push_back(buildNode(p->children[idx + 1].get()));
         }
 
-        return std::make_unique<Lambda>(
-            std::move(ps), std::make_unique<Seq>(std::move(parts)));
+        struct LambdaNode : AETNode {
+            std::string name;
+            std::vector<std::string> params;
+            AETNodePtr body;
+
+            LambdaNode(std::string n, std::vector<std::string> ps, AETNodePtr b)
+                : name(std::move(n)),
+                  params(std::move(ps)),
+                  body(std::move(b)) {}
+
+            Value execute(Environment& env) override {
+                Value::FuncType fn = [name = this->name, params = this->params,
+                                      bodyPtr = this->body.get()](
+                                         auto const& args,
+                                         Environment& env) -> Value {
+                    env.pushStack(name.empty() ? "<anonymous>" : name);
+
+                    env.pushFrame();
+
+                    if (args.size() > params.size()) {
+                        env.popFrame();
+                        env.popStack();
+                        throw std::runtime_error(
+                            "Argument count mismatch in function '" + name +
+                            "' (expected at most " +
+                            std::to_string(params.size()) + ", got " +
+                            std::to_string(args.size()) + ")");
+                    }
+
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        env.set(params[i], args[i]);
+                    }
+
+                    for (size_t i = args.size(); i < params.size(); ++i) {
+                        env.set(params[i], Value::makeNil());
+                    }
+
+                    try {
+                        bodyPtr->execute(env);
+                    } catch (ReturnException& re) {
+                        Value ret = re.value;
+                        env.popFrame();
+                        env.popStack();
+                        return ret;
+                    }
+
+                    env.popFrame();
+                    env.popStack();
+                    return Value::makeNil();
+                };
+
+                return Value::makeFunction(std::move(fn));
+            }
+        };
+
+        return std::make_unique<LambdaNode>(
+            fnName, std::move(params), std::make_unique<Seq>(std::move(parts)));
     }
 
     AETNodePtr makeBinaryOp(const ASTNode* p) {

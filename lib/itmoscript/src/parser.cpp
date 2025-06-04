@@ -44,15 +44,23 @@ ASTNodePtr Parser::parseStatementList() {
     auto list = std::make_unique<ASTNode>(NodeType::StatementList);
 
     while (match(TokenType::NewLine)) {
-        ;
     }
 
     while (!check(TokenType::End) && !check(TokenType::Else) &&
            !check(TokenType::EndOfFile)) {
+        size_t oldIndex = index_;
+
         list->addChild(parseStatement());
 
+        if (index_ == oldIndex) {
+            throw ParseError("Uexpected token '" + tokens_[index_].lexeme +
+                             "' at " + std::to_string(index_) + ", line " +
+                             std::to_string(tokens_[index_].line) +
+                             ", column " +
+                             std::to_string(tokens_[index_].column));
+        }
+
         while (match(TokenType::NewLine)) {
-            ;
         }
     }
 
@@ -449,4 +457,4 @@ ASTNodePtr Parser::parseSliceOrExpr() {
     return std::make_unique<ASTNode>(NodeType::Nil);
 }
 
-}  // namespace itmoscript
+}  

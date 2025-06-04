@@ -17,6 +17,21 @@ static bool run(const std::string& code, std::string& outStr) {
     return ok;
 }
 
+// Helper to run code with a given runtime input (for read())
+static bool runWithInput(const std::string& code,
+                         const std::string& runtimeData, std::string& outStr) {
+    std::istringstream codeIn(code);
+    std::istringstream runtimeIn(runtimeData);
+    std::ostringstream output;
+    bool ok = interpret(codeIn, runtimeIn, output);
+    if (ok) {
+        outStr = output.str();
+    } else {
+        outStr.clear();
+    }
+    return ok;
+}
+
 TEST(NumberStdLibSuite, AbsPositive) {
     std::string code = R"(
         print(abs(5))
@@ -529,4 +544,130 @@ TEST(ListStdLibSuite, CombinedOperations) {
     std::string out;
     ASSERT_TRUE(run(code, out));
     ASSERT_EQ(out, "[2, 3, 4, 5, 7, 10]");
+}
+
+TEST(SystemStdLibSuite, PrintNoNewline) {
+    std::string code = R"(
+        print("hello")
+        print("world")
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    // Should be "helloworld", no line breaks
+    ASSERT_EQ(out, "helloworld");
+}
+
+TEST(SystemStdLibSuite, PrintNumberAndString) {
+    std::string code = R"(
+        print(123)
+        print("abc")
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    ASSERT_EQ(out, "123abc");
+}
+
+TEST(SystemStdLibSuite, PrintlnAddsNewline) {
+    std::string code = R"(
+        println("line1")
+        println("line2")
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    // Each println adds exactly one '\n'
+    ASSERT_EQ(out, "line1\nline2\n");
+}
+
+TEST(SystemStdLibSuite, MixedPrintAndPrintln) {
+    std::string code = R"(
+        print("a")
+        println("b")
+        print("c")
+        println("d")
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    // "a" then "b\n", then "c" then "d\n"
+    ASSERT_EQ(out, "ab\ncd\n");
+}
+
+TEST(SystemStdLibSuite, ReadSingleLine) {
+    std::string code = R"(
+        x = read()
+        print(x)
+    )";
+    std::string runtime = "hello\n";
+    std::string out;
+    ASSERT_TRUE(runWithInput(code, runtime, out));
+    // read() returns "hello" (no '\n'), then print prints it without quotes if
+    // no spaces? Actually, since "hello" has no whitespace, print prints it
+    // raw:
+    ASSERT_EQ(out, "hello");
+}
+
+TEST(SystemStdLibSuite, ReadThenPrintQuoted) {
+    std::string code = R"(
+        x = read()
+        print(x)
+    )";
+    std::string runtime = "hello world\n";
+    std::string out;
+    ASSERT_TRUE(runWithInput(code, runtime, out));
+    // read() returns "hello world"; print sees a space, prints as "hello world"
+    ASSERT_EQ(out, "\"hello world\"");
+}
+
+TEST(SystemStdLibSuite, ReadEOFReturnsNil) {
+    std::string code = R"(
+        x = read()
+        print(x)
+    )";
+    std::string runtime = "";  // empty input
+    std::string out;
+    ASSERT_TRUE(runWithInput(code, runtime, out));
+    // read() returns nil, printed as "nil"
+    ASSERT_EQ(out, "nil");
+}
+
+TEST(SystemStdLibSuite, StacktraceEmptyOutsideFunction) {
+    std::string code = R"(
+        st = stacktrace()
+        print(st)
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    // No functions on the stack, so we get an empty list "[]"
+    ASSERT_EQ(out, "[]");
+}
+
+TEST(SystemStdLibSuite, StacktraceOneLevel) {
+    std::string code = R"(
+        single = function()
+            st = stacktrace()
+            print(st)
+        end function
+
+        single()
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    ASSERT_EQ(out, "[<anonymous>]");
+}
+
+TEST(SystemStdLibSuite, StacktraceNested) {
+    std::string code = R"(
+        inner = function()
+            st = stacktrace()
+            print(st)
+        end function
+
+        outer = function()
+            inner()
+        end function
+
+        outer()
+    )";
+    std::string out;
+    ASSERT_TRUE(run(code, out));
+    ASSERT_EQ(out, "[<anonymous>, <anonymous>]");
 }

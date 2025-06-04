@@ -1,0 +1,309 @@
+// ----------------------------------------------
+// solution.itmo
+// ----------------------------------------------
+
+//
+// We build a purely‐functional “Treap” where each node is a 6‐element list:
+//   [ priority, cnt, mn, revFlag, leftSub, rightSub ]
+//
+
+// ------------------------------------------------------------------
+// Helpers: node‐construction, “getters,” update, and push (lazy reverse)
+// ------------------------------------------------------------------
+
+makeNode = function(priority)
+    // Create a leaf node whose priority=priority, cnt=1, mn=priority, revFlag=false, no children
+    return [priority, 1, priority, false, nil, nil]
+end function
+
+// cnt(node)  → count of nodes in subtree (0 if node==nil)
+cnt = function(node)
+    if node == nil then
+        return 0
+    end if
+    return node[1]
+end function
+
+mnVal = function(node)
+    if node == nil then
+        // Use a large “infinity” placeholder
+        return 2147483647
+    end if
+    return node[2]
+end function
+
+// upd(node)  → recalc cnt & mn for “node” given its children; return a brand‐new node list
+upd = function(node)
+    if node == nil then
+        return nil
+    end if
+
+    // Extract fields from the old node
+    p = node[0]           // priority
+    // node[3] is revFlag
+    leftSub  = node[4]
+    rightSub = node[5]
+
+    // Compute new count and new min
+    newCnt = cnt(leftSub) + cnt(rightSub) + 1
+    newMn  = min( p, min( mnVal(leftSub), mnVal(rightSub) ) )
+
+    // Reassemble
+    return [ p,          // priority
+             newCnt,     // recalculated cnt
+             newMn,      // recalculated mn
+             node[3],    // keep same revFlag
+             leftSub,    // same left
+             rightSub ]  // same right
+end function
+
+// toggleRev(node)  → if node!=nil, flip its revFlag field, return new node
+toggleRev = function(node)
+    if node == nil then
+        return nil
+    end if
+    return [ node[0],   // priority
+             node[1],   // cnt
+             node[2],   // mn
+             not node[3], // flipped revFlag
+             node[4],   // left
+             node[5] ]  // right
+end function
+
+// push(node) → “push down” the lazy‐reversal flag.  Returns a brand‐new node if we changed anything.
+//   1) If node==nil or revFlag==false, return node itself.
+//   2) Otherwise, create a new node with revFlag=false and left/right children swapped.
+//      Also flip each child’s revFlag (via toggleRev).
+push = function(node)
+    if node == nil then
+        return nil
+    end if
+
+    if not node[3] then
+        // revFlag is false: nothing to do
+        return node
+    end if
+
+    // We need to clear this node’s revFlag, swap children, and propagate rev to children
+    p        = node[0]
+    oldCnt   = node[1]
+    oldMn    = node[2]
+    // newRevFlag = false
+    leftSub  = node[4]
+    rightSub = node[5]
+
+    // Toggle each child’s revFlag (if not nil)
+    newLeft  = toggleRev(rightSub)
+    newRight = toggleRev(leftSub)
+
+    // After swapping, we must re‐compute cnt & mn, but 
+    // note that swapping children does NOT change the numeric cnt or mn:
+    //    cnt = oldCnt, mn = oldMn.  (Because children are same contents.)
+    // So we can reuse oldCnt and oldMn directly.
+    return [ p, oldCnt, oldMn, false, newLeft, newRight ]
+end function
+
+// -----------------------------------------------------------
+// merge(l, r) → returns “root of merged treap” from two subtrees l,r.
+// Exactly as in C++: if l.priority > r.priority, attach r into l.right; else vice versa.
+// But always call push() on both children first.
+// -----------------------------------------------------------
+merge = function(l, r)
+    // “push” lazy flags on both
+    l2 = push(l)
+    r2 = push(r)
+
+    if l2 == nil then
+        return r2
+    end if
+    if r2 == nil then
+        return l2
+    end if
+
+    // Compare priorities
+    if l2[0] > r2[0] then
+        // l becomes root; merge l2.right and r2
+        leftSub  = l2[4]
+        rightSub = l2[5]
+        mergedRight = merge(rightSub, r2)
+        // Build new “l2” with updated right child
+        newNode = [ l2[0],      // priority
+                    cnt( leftSub ) + cnt( mergedRight ) + 1,          // new cnt
+                    min( l2[0], min( mnVal(leftSub), mnVal(mergedRight) ) ), // new mn
+                    l2[3],     // same revFlag
+                    leftSub,
+                    mergedRight ]
+        return newNode
+    else
+        // r becomes root; merge l2 and r2.left
+        leftSubR  = r2[4]
+        rightSubR = r2[5]
+        mergedLeft = merge(l2, leftSubR)
+        newNode = [ r2[0],      // priority
+                    cnt( mergedLeft ) + cnt( rightSubR ) + 1,              // new cnt
+                    min( r2[0], min( mnVal(mergedLeft), mnVal(rightSubR) ) ), // new mn
+                    r2[3],     // same revFlag
+                    mergedLeft,
+                    rightSubR ]
+        return newNode
+    end if
+end function
+
+// ------------------------------------------------------------------
+// split(node, key, add = 0) → returns two lists [lSub, rSub] so that
+//   “lSub” contains all nodes with implicit “index” < key, and
+//   “rSub” contains all nodes with implicit index ≥ key.
+// C++ logic: let idx = add + cnt(node.left).  If key <= idx, then split node.left;
+// else split node.right with updated add.  Always push(node) first.
+// ------------------------------------------------------------------
+split = function(node, key, add)
+    if add == nil then
+        add = 0
+    end if
+
+    if node == nil then
+        return [ nil, nil ]
+    end if
+
+    n2 = push(node)
+    leftSub  = n2[4]
+    rightSub = n2[5]
+    idx = add + cnt(leftSub)
+
+    if key <= idx then
+        // Entire split goes into left subtree
+        temp = split(leftSub, key, add)
+        lRes = temp[0]
+        newLeftOfNode = temp[1]
+        // Rebuild current node with new left child = newLeftOfNode
+        rebuiltNode = [ n2[0],                          // priority
+                        cnt( newLeftOfNode ) + cnt(rightSub) + 1,  // cnt
+                        min( n2[0], min( mnVal(newLeftOfNode), mnVal(rightSub) ) ), // mn
+                        n2[3], // same revFlag
+                        newLeftOfNode,
+                        rightSub ]
+        return [ lRes, rebuiltNode ]
+    else
+        // Split in right subtree
+        temp = split(rightSub, key, add + cnt(leftSub) + 1)
+        newRightOfNode = temp[0]
+        rRes = temp[1]
+        rebuiltNode = [ n2[0],                              // priority
+                        cnt( leftSub ) + cnt(newRightOfNode) + 1, // cnt
+                        min( n2[0], min( mnVal(leftSub), mnVal(newRightOfNode) ) ), // mn
+                        n2[3], // same revFlag
+                        leftSub,
+                        newRightOfNode ]
+        return [ rebuiltNode, rRes ]
+    end if
+end function
+
+// --------------------------------------------------
+// insert(root, pos, val) → returns new root after inserting val at index=pos.
+// Exactly: split(root, pos) → [A, B], then merge( A, makeNode(val)) → C, then merge(C, B).
+// --------------------------------------------------
+insertNode = function(root, pos, val)
+    temp1 = split(root, pos, 0)
+    A = temp1[0]
+    B = temp1[1]
+    newNode = makeNode(val)
+    merged1 = merge(A, newNode)
+    finalRoot = merge(merged1, B)
+    return finalRoot
+end function
+
+// --------------------------------------------------
+// minRange(root, l, r) → returns minimum priority among indices [l..r], inclusive.
+// Procedure: split(root, r+1) → [ X, C ]
+//            split(X, l)   → [ A, B ]
+// answer = mnVal(B)
+// Then re‐merge: merge(A,B) → X, merge(X,C) → root
+// --------------------------------------------------
+minRange = function(root, l, r)
+    // First split off everything ≥ r+1
+    temp1 = split(root, r + 1, 0)
+    X  = temp1[0]
+    C  = temp1[1]
+
+    // Then split X into [0..l-1] vs [l..]
+    temp2 = split(X, l, 0)
+    A = temp2[0]
+    B = temp2[1]
+
+    ans = mnVal(B)
+
+    // Re‐merge in exactly the same order
+    mergedAB = merge(A, B)
+    newRoot  = merge(mergedAB, C)
+
+    // Return two values: the rebuilt root and the answer
+    return [ newRoot, ans ]
+end function
+
+// --------------------------------------------------
+// reverseRange(root, l, r) → returns new root after flipping [l..r].
+// We do: split(root, l) → [ A, D ]
+//         split(D, r-l+1) → [ B, C ]
+//         flip B.revFlag, then re‐merge: merge(A, B) → T, merge(T, C) → newRoot
+// --------------------------------------------------
+reverseRange = function(root, l, r)
+    temp1 = split(root, l, 0)
+    A = temp1[0]
+    D = temp1[1]
+
+    temp2 = split(D, r - l + 1, 0)
+    B = temp2[0]
+    C = temp2[1]
+
+    // Toggle B’s revFlag
+    B2 = toggleRev(B)
+
+    mergedAB = merge(A, B2)
+    newRoot  = merge(mergedAB, C)
+    return newRoot
+end function
+
+// ---------------------------
+// main program starts here
+// ---------------------------
+
+main = function()
+    // Read n, m
+    nm = read()
+    // split the line on spaces
+    parts = split(nm, " ")
+    n = parse_num(parts[0])
+    m = parse_num(parts[1])
+
+    // Read the n initial values
+    valuesLine = read()
+    vals = split(valuesLine, " ")
+    // Build the initial treap “rt”
+    rt = nil
+    for i in range(n - 1)
+        x = parse_num(vals[i])
+        rt = insertNode(rt, i, x)
+    end for
+
+    // Process m commands
+    for _ in range(m)
+        cmdLine = read()
+        cparts = split(cmdLine, " ")
+        cmd = parse_num(cparts[0])
+        l   = parse_num(cparts[1]) - 1   // convert to 0‐based
+        r   = parse_num(cparts[2]) - 1
+
+        if cmd == 1 then
+            rt = reverseRange(rt, l, r)
+        else
+            // cmd == 2
+            temp = minRange(rt, l, r)
+            rt = temp[0]      // rebuilt root
+            ans = temp[1]
+            println(ans)
+        end if
+    end for
+end function
+
+// Call main
+main()

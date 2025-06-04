@@ -32,6 +32,8 @@ Lexer::Lexer(const std::string& source) noexcept : source_(source) {}
 std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
     while (pos_ < source_.size()) {
+        size_t oldPos = pos_;
+
         char c = peek();
 
         if (c == '\n') {
@@ -137,6 +139,13 @@ std::vector<Token> Lexer::tokenize() {
                     : 1;
             lexeme = source_.substr(pos_ - length, length);
             tokens.push_back({type, lexeme, line_, start_col});
+        }
+
+        if (pos_ == oldPos) {
+            throw std::runtime_error("Unexpected '" + source_.substr(pos_, 15) +
+                                     "...' at pos " + std::to_string(pos_) +
+                                     ", line " + std::to_string(line_) +
+                                     ", column " + std::to_string(column_));
         }
     }
     tokens.push_back({TokenType::EndOfFile, "", line_, column_});

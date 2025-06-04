@@ -1,9 +1,8 @@
-
-
 #include "itmoscript/interpreter.h"
 
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -16,9 +15,22 @@
 
 namespace itmoscript {
 
-bool interpret(std::istream& in, std::ostream& out) {
+/**
+ *  Two‐argument version: No runtime input (read() will immediately be EOF).
+ */
+bool interpret(std::istream& codeIn, std::ostream& out) {
+    return interpret(codeIn, std::cin, out);
+}
+
+/**
+ *  Three‐argument version: codeIn supplies the program text; runtimeIn supplies
+ *  data for any read() calls at runtime; out is the destination for
+ * print/println.
+ */
+bool interpret(std::istream& codeIn, std::istream& runtimeIn,
+               std::ostream& out) {
     try {
-        std::string src((std::istreambuf_iterator<char>(in)),
+        std::string src((std::istreambuf_iterator<char>(codeIn)),
                         std::istreambuf_iterator<char>());
 
         Lexer lex(src);
@@ -30,7 +42,7 @@ bool interpret(std::istream& in, std::ostream& out) {
         auto root = buildAET(ast.get());
 
         Environment::Builder eb;
-        eb.setOutput(out);
+        eb.setInput(runtimeIn).setOutput(out);
 
         registerStandardLibrary(eb);
 
@@ -38,7 +50,8 @@ bool interpret(std::istream& in, std::ostream& out) {
 
         root->execute(*env);
         return true;
-    } catch (...) {
+    } catch (std::runtime_error e) {
+        std::cerr << e.what() << std::endl;
         return false;
     }
 }

@@ -1,4 +1,3 @@
-
 #include "itmoscript/environment.h"
 
 #include <stdexcept>
