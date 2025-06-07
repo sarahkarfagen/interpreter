@@ -15,43 +15,33 @@
 namespace itmoscript {
 
 void registerStandardLibrary(Environment::Builder& eb) {
-    eb.addGlobal(
-        "print",
-        Value::makeFunction([](auto const& args, Environment& env) -> Value {
-            for (const auto& v : args) {
-                if (v.type() == Value::Type::String) {
-                    const auto& s = v.asString();
+    eb.addGlobal("print", Value::makeFunction(
+                              [](auto const& args, Environment& env) -> Value {
+                                  for (const auto& v : args) {
+                                      if (v.type() == Value::Type::String) {
+                                          const auto& s = v.asString();
 
-                    if (s.find_first_of(" \t\n") != std::string::npos) {
-                        env.out() << '"' << s << '"';
-                    } else {
-                        env.out() << s;
-                    }
-                } else {
-                    env.out() << v.toString();
-                }
-            }
-            return Value::makeNil();
-        }));
+                                          env.out() << s;
+                                      } else {
+                                          env.out() << v.toString();
+                                      }
+                                  }
+                                  return Value::makeNil();
+                              }));
 
-    eb.addGlobal(
-        "println",
-        Value::makeFunction([](auto const& args, Environment& env) -> Value {
-            for (const auto& v : args) {
-                if (v.type() == Value::Type::String) {
-                    const auto& s = v.asString();
-                    if (s.find_first_of(" \t\n") != std::string::npos) {
-                        env.out() << '"' << s << '"';
-                    } else {
-                        env.out() << s;
-                    }
-                } else {
-                    env.out() << v.toString();
-                }
-            }
-            env.out() << "\n";
-            return Value::makeNil();
-        }));
+    eb.addGlobal("println", Value::makeFunction([](auto const& args,
+                                                   Environment& env) -> Value {
+                     for (const auto& v : args) {
+                         if (v.type() == Value::Type::String) {
+                             const auto& s = v.asString();
+                             env.out() << s;
+                         } else {
+                             env.out() << v.toString();
+                         }
+                     }
+                     env.out() << "\n";
+                     return Value::makeNil();
+                 }));
 
     eb.addGlobal("read", Value::makeFunction([](auto const& args,
                                                 Environment& env) -> Value {

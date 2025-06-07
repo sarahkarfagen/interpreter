@@ -17,7 +17,6 @@ static bool run(const std::string& code, std::string& outStr) {
     return ok;
 }
 
-// Helper to run code with a given runtime input (for read())
 static bool runWithInput(const std::string& code,
                          const std::string& runtimeData, std::string& outStr) {
     std::istringstream codeIn(code);
@@ -313,7 +312,7 @@ TEST(StringStdLibSuite, ReplaceSingleOccurrence) {
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
-    ASSERT_EQ(out, "\"hello there\"");
+    ASSERT_EQ(out, "hello there");
 }
 
 TEST(StringStdLibSuite, ReplaceMultipleOccurrences) {
@@ -386,7 +385,7 @@ TEST(ListStdLibSuite, PushElement) {
         lst = [1,2]
         newlst = push(lst, 3)
         print(newlst)
-        print(len(lst))  // original must remain unchanged
+        print(len(lst))  
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
@@ -398,7 +397,7 @@ TEST(ListStdLibSuite, PopElement) {
         lst = [4,5,6]
         v = pop(lst)
         print(v)
-        print(len(lst))  // original list remains unchanged
+        print(len(lst))  
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
@@ -534,11 +533,11 @@ TEST(ListStdLibSuite, SortMixedTypes) {
 
 TEST(ListStdLibSuite, CombinedOperations) {
     std::string code = R"(
-        lst = range(1, 6, 1)      // [1,2,3,4,5]
-        lst2 = remove(lst, 0)     // [2,3,4,5]
-        lst3 = push(lst2, 10)     // [2,3,4,5,10]
-        lst4 = insert(lst3, 2, 7) // [2,3,7,4,5,10]
-        sorted = sort(lst4, function(a, b) return a < b end function)       // [2,3,4,5,7,10]
+        lst = range(1, 6, 1)      
+        lst2 = remove(lst, 0)     
+        lst3 = push(lst2, 10)     
+        lst4 = insert(lst3, 2, 7) 
+        sorted = sort(lst4, function(a, b) return a < b end function)       
         print(sorted)
     )";
     std::string out;
@@ -553,7 +552,7 @@ TEST(SystemStdLibSuite, PrintNoNewline) {
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
-    // Should be "helloworld", no line breaks
+
     ASSERT_EQ(out, "helloworld");
 }
 
@@ -574,7 +573,7 @@ TEST(SystemStdLibSuite, PrintlnAddsNewline) {
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
-    // Each println adds exactly one '\n'
+
     ASSERT_EQ(out, "line1\nline2\n");
 }
 
@@ -587,7 +586,7 @@ TEST(SystemStdLibSuite, MixedPrintAndPrintln) {
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
-    // "a" then "b\n", then "c" then "d\n"
+
     ASSERT_EQ(out, "ab\ncd\n");
 }
 
@@ -599,9 +598,7 @@ TEST(SystemStdLibSuite, ReadSingleLine) {
     std::string runtime = "hello\n";
     std::string out;
     ASSERT_TRUE(runWithInput(code, runtime, out));
-    // read() returns "hello" (no '\n'), then print prints it without quotes if
-    // no spaces? Actually, since "hello" has no whitespace, print prints it
-    // raw:
+
     ASSERT_EQ(out, "hello");
 }
 
@@ -613,8 +610,8 @@ TEST(SystemStdLibSuite, ReadThenPrintQuoted) {
     std::string runtime = "hello world\n";
     std::string out;
     ASSERT_TRUE(runWithInput(code, runtime, out));
-    // read() returns "hello world"; print sees a space, prints as "hello world"
-    ASSERT_EQ(out, "\"hello world\"");
+
+    ASSERT_EQ(out, "hello world");
 }
 
 TEST(SystemStdLibSuite, ReadEOFReturnsNil) {
@@ -622,10 +619,10 @@ TEST(SystemStdLibSuite, ReadEOFReturnsNil) {
         x = read()
         print(x)
     )";
-    std::string runtime = "";  // empty input
+    std::string runtime = "";
     std::string out;
     ASSERT_TRUE(runWithInput(code, runtime, out));
-    // read() returns nil, printed as "nil"
+
     ASSERT_EQ(out, "nil");
 }
 
@@ -636,7 +633,7 @@ TEST(SystemStdLibSuite, StacktraceEmptyOutsideFunction) {
     )";
     std::string out;
     ASSERT_TRUE(run(code, out));
-    // No functions on the stack, so we get an empty list "[]"
+
     ASSERT_EQ(out, "[]");
 }
 

@@ -45,6 +45,11 @@ class Environment {
     std::vector<std::string> callStack_;
 
     friend class Builder;
+
+   public:
+    const std::unordered_map<std::string, Value>& getLocals() const noexcept {
+        return frames_.back();
+    }
 };
 
 class Environment::Builder {

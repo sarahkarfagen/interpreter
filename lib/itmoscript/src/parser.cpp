@@ -90,6 +90,11 @@ ASTNodePtr Parser::parseSimpleStatement() {
     if (check(TokenType::Identifier) && index_ + 1 < tokens_.size() &&
         tokens_[index_ + 1].type == TokenType::LeftParen)
         return parseFunctionCall();
+
+    if (check(TokenType::LeftParen)) {
+        return parseExpression();
+    }
+
     return std::make_unique<ASTNode>(NodeType::StatementList);
 }
 
@@ -442,19 +447,40 @@ ASTNodePtr Parser::parseArgumentList() {
 }
 
 ASTNodePtr Parser::parseSliceOrExpr() {
-    if (check(TokenType::Colon) || !check(TokenType::RightBracket)) {
-        auto start = match(TokenType::Colon) ? nullptr : parseExpression();
-        if (match(TokenType::Colon)) {
-            auto slice = std::make_unique<ASTNode>(NodeType::BinaryOp, ":");
-            slice->addChild(start ? std::move(start)
-                                  : std::make_unique<ASTNode>(NodeType::Nil));
-            if (!check(TokenType::RightBracket))
-                slice->addChild(parseExpression());
-            return slice;
-        }
-        if (start) return start;
+    if (check(TokenType::RightBracket)) {
+        return std::make_unique<ASTNode>(NodeType::Nil);
     }
+
+    ASTNodePtr start;
+    bool hasStart = false;
+
+    if (!check(TokenType::Colon)) {
+        start = parseExpression();
+        hasStart = true;
+    }
+
+    if (match(TokenType::Colon)) {
+        auto slice = std::make_unique<ASTNode>(NodeType::BinaryOp, ":");
+
+        if (hasStart) {
+            slice->addChild(std::move(start));
+        } else {
+            slice->addChild(std::make_unique<ASTNode>(NodeType::Nil));
+        }
+
+        if (!check(TokenType::RightBracket)) {
+            slice->addChild(parseExpression());
+        } else {
+            slice->addChild(std::make_unique<ASTNode>(NodeType::Nil));
+        }
+        return slice;
+    }
+
+    if (hasStart) {
+        return start;
+    }
+
     return std::make_unique<ASTNode>(NodeType::Nil);
 }
 
-}  
+}  // namespace itmoscript

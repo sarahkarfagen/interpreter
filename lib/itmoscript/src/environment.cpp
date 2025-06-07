@@ -20,14 +20,7 @@ Value Environment::get(const std::string& name) const {
 }
 
 void Environment::set(const std::string& name, Value val) {
-    for (auto it = frames_.rbegin(); it != frames_.rend(); ++it) {
-        if (it->count(name)) {
-            (*it)[name] = std::move(val);
-            return;
-        }
-    }
-
-    frames_.back().emplace(name, std::move(val));
+    frames_.back()[name] = std::move(val);
 }
 
 void Environment::pushFrame() { frames_.emplace_back(); }

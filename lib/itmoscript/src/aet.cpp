@@ -1,7 +1,10 @@
+
+
 #include "itmoscript/aet.h"
 
 #include <cmath>
 #include <stdexcept>
+#include <unordered_map>
 
 #include "itmoscript/ast.h"
 #include "itmoscript/environment.h"
@@ -12,6 +15,19 @@ namespace {
 
 inline void type_error(const std::string& what) {
     throw std::runtime_error("Type error: " + what);
+}
+
+bool isTruthy(const Value& v) {
+    switch (v.type()) {
+        case Value::Type::Boolean:
+            return v.asBoolean();
+        case Value::Type::Nil:
+            return false;
+        case Value::Type::Number:
+            return v.asNumber() != 0;
+        default:
+            return true;
+    }
 }
 
 class Builder {
@@ -96,26 +112,98 @@ class Builder {
                 auto v = expr->execute(env);
                 if (op != "=") {
                     Value old = env.get(name);
-                    if (old.type() != Value::Type::Number ||
-                        v.type() != Value::Type::Number) {
-                        type_error(op + " requires numbers");
+
+                    if (op == "+=") {
+                        if (old.type() == Value::Type::Number &&
+                            v.type() == Value::Type::Number) {
+                            v = Value::makeNumber(old.asNumber() +
+                                                  v.asNumber());
+                        }
+
+                        else if (old.type() == Value::Type::String &&
+                                 v.type() == Value::Type::String) {
+                            v = Value::makeString(old.asString() +
+                                                  v.asString());
+                        }
+
+                        else if (old.type() == Value::Type::List &&
+                                 v.type() == Value::Type::List) {
+                            auto out = old.asList();
+                            const auto& rhs = v.asList();
+                            out.insert(out.end(), rhs.begin(), rhs.end());
+                            v = Value::makeList(std::move(out));
+                        } else {
+                            type_error("'+=' unsupported types");
+                        }
                     }
-                    double a = old.asNumber();
-                    double b = v.asNumber();
-                    if (op == "+=")
-                        v = Value::makeNumber(a + b);
-                    else if (op == "-=")
-                        v = Value::makeNumber(a - b);
-                    else if (op == "*=")
-                        v = Value::makeNumber(a * b);
-                    else if (op == "/=")
-                        v = Value::makeNumber(a / b);
-                    else if (op == "%=")
-                        v = Value::makeNumber(std::fmod(a, b));
-                    else if (op == "^=")
-                        v = Value::makeNumber(std::pow(a, b));
-                    else
-                        type_error("Unsupported assignment op '" + op + "'");
+
+                    else if (op == "-=") {
+                        if (old.type() == Value::Type::Number &&
+                            v.type() == Value::Type::Number) {
+                            v = Value::makeNumber(old.asNumber() -
+                                                  v.asNumber());
+                        }
+
+                        else if (old.type() == Value::Type::String &&
+                                 v.type() == Value::Type::String) {
+                            const auto& a = old.asString();
+                            const auto& b = v.asString();
+                            if (a.size() >= b.size() &&
+                                a.compare(a.size() - b.size(), b.size(), b) ==
+                                    0) {
+                                v = Value::makeString(
+                                    a.substr(0, a.size() - b.size()));
+                            } else {
+                                type_error("'-=' suffix not found");
+                            }
+                        } else {
+                            type_error("'-=' unsupported types");
+                        }
+                    }
+
+                    else if (op == "*=") {
+                        if (old.type() == Value::Type::Number &&
+                            v.type() == Value::Type::Number) {
+                            v = Value::makeNumber(old.asNumber() *
+                                                  v.asNumber());
+                        }
+
+                        else if (old.type() == Value::Type::String &&
+                                 v.type() == Value::Type::Number) {
+                            std::string out;
+                            int times = static_cast<int>(v.asNumber());
+                            while (times-- > 0) out += old.asString();
+                            v = Value::makeString(std::move(out));
+                        }
+
+                        else if (old.type() == Value::Type::List &&
+                                 v.type() == Value::Type::Number) {
+                            auto base = old.asList();
+                            std::vector<Value> out;
+                            int times = static_cast<int>(v.asNumber());
+                            while (times-- > 0)
+                                out.insert(out.end(), base.begin(), base.end());
+                            v = Value::makeList(std::move(out));
+                        } else {
+                            type_error("'*=' unsupported types");
+                        }
+                    }
+
+                    else {
+                        if (old.type() != Value::Type::Number ||
+                            v.type() != Value::Type::Number) {
+                            type_error(op + " requires numbers");
+                        }
+                        double a = old.asNumber(), b = v.asNumber();
+                        if (op == "/=")
+                            v = Value::makeNumber(a / b);
+                        else if (op == "%=")
+                            v = Value::makeNumber(std::fmod(a, b));
+                        else if (op == "^=")
+                            v = Value::makeNumber(std::pow(a, b));
+                        else
+                            type_error("Unsupported op '" + op + "'");
+                    }
                 }
                 env.set(name, std::move(v));
                 return Value::makeNil();
@@ -146,6 +234,7 @@ class Builder {
                 return fval.asFunction()(avals, env);
             }
         };
+
         std::vector<AETNodePtr> args;
         if (p->children.size() > 1) {
             for (auto& c0 : p->children[1]->children) {
@@ -188,7 +277,8 @@ class Builder {
             AETNodePtr elseBody;
             Value execute(Environment& env) override {
                 for (auto& [cond, body] : clauses) {
-                    if (cond->execute(env).asBoolean()) {
+                    Value cv = cond->execute(env);
+                    if (isTruthy(cv)) {
                         return body->execute(env);
                     }
                 }
@@ -212,6 +302,7 @@ class Builder {
                 out->elseBody = buildNode(c->children[0].get());
             }
         }
+
         return out;
     }
 
@@ -221,7 +312,7 @@ class Builder {
             W(AETNodePtr c, AETNodePtr b)
                 : cond(std::move(c)), body(std::move(b)) {}
             Value execute(Environment& env) override {
-                while (cond->execute(env).asBoolean()) {
+                while (isTruthy(cond->execute(env))) {
                     try {
                         body->execute(env);
                     } catch (ContinueException&) {
@@ -296,6 +387,7 @@ class Builder {
                 return Value::makeNil();
             }
         };
+
         std::vector<AETNodePtr> parts;
 
         parts.push_back(buildNode(p->children[idx].get()));
@@ -316,43 +408,53 @@ class Builder {
                   body(std::move(b)) {}
 
             Value execute(Environment& env) override {
-                Value::FuncType fn = [name = this->name, params = this->params,
-                                      bodyPtr = this->body.get()](
-                                         auto const& args,
-                                         Environment& env) -> Value {
-                    env.pushStack(name.empty() ? "<anonymous>" : name);
+                auto const& locals = env.getLocals();
+                std::unordered_map<std::string, Value> capturedClosure = locals;
 
-                    env.pushFrame();
+                auto capturedName = name;
+                auto capturedParams = params;
+                AETNode* bodyPtr = body.get();
 
-                    if (args.size() > params.size()) {
-                        env.popFrame();
-                        env.popStack();
+                Value::FuncType fn =
+                    [capturedName, capturedParams, bodyPtr, capturedClosure](
+                        auto const& args, Environment& env2) -> Value {
+                    env2.pushStack(capturedName.empty() ? "<anonymous>"
+                                                        : capturedName);
+
+                    env2.pushFrame();
+
+                    for (auto const& kv : capturedClosure) {
+                        env2.set(kv.first, kv.second);
+                    }
+
+                    if (args.size() > capturedParams.size()) {
+                        env2.popFrame();
+                        env2.popStack();
                         throw std::runtime_error(
-                            "Argument count mismatch in function '" + name +
-                            "' (expected at most " +
-                            std::to_string(params.size()) + ", got " +
+                            "Argument count mismatch in function '" +
+                            capturedName + "' (expected at most " +
+                            std::to_string(capturedParams.size()) + ", got " +
                             std::to_string(args.size()) + ")");
                     }
-
                     for (size_t i = 0; i < args.size(); ++i) {
-                        env.set(params[i], args[i]);
+                        env2.set(capturedParams[i], args[i]);
                     }
-
-                    for (size_t i = args.size(); i < params.size(); ++i) {
-                        env.set(params[i], Value::makeNil());
+                    for (size_t i = args.size(); i < capturedParams.size();
+                         ++i) {
+                        env2.set(capturedParams[i], Value::makeNil());
                     }
 
                     try {
-                        bodyPtr->execute(env);
+                        bodyPtr->execute(env2);
                     } catch (ReturnException& re) {
                         Value ret = re.value;
-                        env.popFrame();
-                        env.popStack();
+                        env2.popFrame();
+                        env2.popStack();
                         return ret;
                     }
 
-                    env.popFrame();
-                    env.popStack();
+                    env2.popFrame();
+                    env2.popStack();
                     return Value::makeNil();
                 };
 
@@ -371,15 +473,25 @@ class Builder {
             BO(std::string o, AETNodePtr l, AETNodePtr r)
                 : op(std::move(o)), lhs(std::move(l)), rhs(std::move(r)) {}
             Value execute(Environment& env) override {
+                if (op == ":") {
+                    Value startVal = lhs->execute(env);
+                    Value endVal = rhs->execute(env);
+                    std::vector<Value> spec;
+                    spec.reserve(2);
+                    spec.push_back(std::move(startVal));
+                    spec.push_back(std::move(endVal));
+                    return Value::makeList(std::move(spec));
+                }
+
                 if (op == "and") {
-                    if (!lhs->execute(env).asBoolean())
+                    if (!isTruthy(lhs->execute(env)))
                         return Value::makeBoolean(false);
-                    return Value::makeBoolean(rhs->execute(env).asBoolean());
+                    return Value::makeBoolean(isTruthy(rhs->execute(env)));
                 }
                 if (op == "or") {
-                    if (lhs->execute(env).asBoolean())
+                    if (isTruthy(lhs->execute(env)))
                         return Value::makeBoolean(true);
-                    return Value::makeBoolean(rhs->execute(env).asBoolean());
+                    return Value::makeBoolean(isTruthy(rhs->execute(env)));
                 }
 
                 auto L = lhs->execute(env);
@@ -387,20 +499,49 @@ class Builder {
 
                 if (op == "+") {
                     if (L.type() == Value::Type::Number &&
-                        R.type() == Value::Type::Number)
+                        R.type() == Value::Type::Number) {
                         return Value::makeNumber(L.asNumber() + R.asNumber());
-                    type_error("+ supports numbers only");
+                    }
+
+                    if (L.type() == Value::Type::String &&
+                        R.type() == Value::Type::String) {
+                        return Value::makeString(L.asString() + R.asString());
+                    }
+
+                    if (L.type() == Value::Type::List &&
+                        R.type() == Value::Type::List) {
+                        auto out = L.asList();
+                        const auto& rhs = R.asList();
+                        out.insert(out.end(), rhs.begin(), rhs.end());
+                        return Value::makeList(std::move(out));
+                    }
+                    type_error("+ unsupported types");
                 }
                 if (op == "-") {
                     if (L.type() == Value::Type::Number &&
-                        R.type() == Value::Type::Number)
+                        R.type() == Value::Type::Number) {
                         return Value::makeNumber(L.asNumber() - R.asNumber());
-                    type_error("- supports numbers only");
+                    }
+
+                    if (L.type() == Value::Type::String &&
+                        R.type() == Value::Type::String) {
+                        const auto& a = L.asString();
+                        const auto& b = R.asString();
+                        if (a.size() >= b.size() &&
+                            a.compare(a.size() - b.size(), b.size(), b) == 0) {
+                            return Value::makeString(
+                                a.substr(0, a.size() - b.size()));
+                        }
+                        type_error("- string suffix not found");
+                    }
+                    type_error("- unsupported types");
                 }
                 if (op == "*") {
                     if (L.type() == Value::Type::Number &&
-                        R.type() == Value::Type::Number)
+                        R.type() == Value::Type::Number) {
                         return Value::makeNumber(L.asNumber() * R.asNumber());
+                    }
+
                     if (L.type() == Value::Type::String &&
                         R.type() == Value::Type::Number) {
                         std::string out;
@@ -410,6 +551,17 @@ class Builder {
                         }
                         return Value::makeString(out);
                     }
+
+                    if (L.type() == Value::Type::List &&
+                        R.type() == Value::Type::Number) {
+                        auto base = L.asList();
+                        std::vector<Value> out;
+                        int times = static_cast<int>(R.asNumber());
+                        while (times-- > 0) {
+                            out.insert(out.end(), base.begin(), base.end());
+                        }
+                        return Value::makeList(std::move(out));
+                    }
                     type_error("* unsupported types");
                 }
                 if (op == "/") {
@@ -417,6 +569,13 @@ class Builder {
                         R.type() == Value::Type::Number)
                         return Value::makeNumber(L.asNumber() / R.asNumber());
                     type_error("/ supports numbers only");
+                }
+                if (op == "%") {
+                    if (L.type() == Value::Type::Number &&
+                        R.type() == Value::Type::Number)
+                        return Value::makeNumber(
+                            std::fmod(L.asNumber(), R.asNumber()));
+                    type_error("% supports numbers only");
                 }
                 if (op == "^") {
                     if (L.type() == Value::Type::Number &&
@@ -441,22 +600,91 @@ class Builder {
                                              : a >= b);
                     return Value::makeBoolean(res);
                 }
+
                 if (op == "index") {
-                    if (L.type() != Value::Type::List ||
-                        R.type() != Value::Type::Number)
-                        type_error("indexing");
-                    int idx = static_cast<int>(R.asNumber());
-                    const auto& lst = L.asList();
-                    if (idx < 0 || idx >= static_cast<int>(lst.size()))
-                        type_error("index out of bounds");
-                    return lst[idx];
+                    if (L.type() == Value::Type::List) {
+                        const auto& lst = L.asList();
+                        int n = static_cast<int>(lst.size());
+
+                        if (R.type() == Value::Type::Number) {
+                            int i = static_cast<int>(R.asNumber());
+                            if (i < 0) i += n;
+                            if (i < 0 || i >= n)
+                                type_error("index out of bounds");
+                            return lst[i];
+                        }
+
+                        if (R.type() == Value::Type::List) {
+                            const auto& sp = R.asList();
+                            if (sp.size() != 2)
+                                type_error("slice spec must have 2 elements");
+
+                            int start = 0, end = n;
+                            if (sp[0].type() == Value::Type::Number) {
+                                start = static_cast<int>(sp[0].asNumber());
+                                if (start < 0) start += n;
+                            }
+                            if (sp[1].type() == Value::Type::Number) {
+                                end = static_cast<int>(sp[1].asNumber());
+                                if (end < 0) end += n;
+                            }
+
+                            start = std::clamp(start, 0, n);
+                            end = std::clamp(end, 0, n);
+                            std::vector<Value> out;
+                            for (int i = start; i < end; ++i)
+                                out.push_back(lst[i]);
+                            return Value::makeList(std::move(out));
+                        }
+                    }
+
+                    if (L.type() == Value::Type::String) {
+                        const auto& s = L.asString();
+                        int n = static_cast<int>(s.size());
+                        if (R.type() == Value::Type::Number) {
+                            int i = static_cast<int>(R.asNumber());
+                            if (i < 0) i += n;
+                            if (i < 0 || i >= n)
+                                type_error("index out of bounds");
+                            return Value::makeString(std::string(1, s[i]));
+                        }
+                        if (R.type() == Value::Type::List) {
+                            const auto& sp = R.asList();
+                            if (sp.size() != 2)
+                                type_error("slice spec must have 2 elements");
+                            int start = 0, end = n;
+                            if (sp[0].type() == Value::Type::Number) {
+                                start = static_cast<int>(sp[0].asNumber());
+                                if (start < 0) start += n;
+                            }
+                            if (sp[1].type() == Value::Type::Number) {
+                                end = static_cast<int>(sp[1].asNumber());
+                                if (end < 0) end += n;
+                            }
+                            start = std::clamp(start, 0, n);
+                            end = std::clamp(end, 0, n);
+                            if (end <= start) return Value::makeString("");
+                            return Value::makeString(
+                                s.substr(start, end - start));
+                        }
+                    }
+                    type_error("indexing/slicing requires list or string");
                 }
                 type_error("Unknown binary op " + op);
                 return Value::makeNil();
             }
         };
-        return std::make_unique<BO>(p->value, buildNode(p->children[0].get()),
-                                    buildNode(p->children[1].get()));
+
+        AETNodePtr left = buildNode(p->children[0].get());
+        AETNodePtr right;
+        if (p->value == ":" && p->children.size() < 2) {
+            ASTNode tmpNil(NodeType::Nil);
+            right = buildNode(&tmpNil);
+        } else {
+            right = buildNode(p->children[1].get());
+        }
+        return std::make_unique<BO>(p->value, std::move(left),
+                                    std::move(right));
     }
 
     AETNodePtr makeUnaryOp(const ASTNode* p) {
@@ -472,7 +700,7 @@ class Builder {
                     return Value::makeNumber(-v.asNumber());
                 }
                 if (op == "not") {
-                    return Value::makeBoolean(!v.asBoolean());
+                    return Value::makeBoolean(!isTruthy(v));
                 }
                 type_error("Unknown unary " + op);
                 return Value::makeNil();
@@ -505,7 +733,6 @@ class Builder {
             } catch (...) {
             }
         }
-
         return std::make_unique<L>(Value::makeString(p->value));
     }
 

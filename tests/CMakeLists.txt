@@ -12,7 +12,7 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(
+set(TEST_SOURCES
   itmoscript_tests
   # basic_test.cpp
   stdlib_test.cpp
@@ -21,6 +21,16 @@ add_executable(
   illegal_ops_test.cpp
   loop_and_branch_test.cpp
   #codeforces_test.cpp
+)
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.experimental")
+    file(GLOB OPT_TESTS "${CMAKE_CURRENT_SOURCE_DIR}/.experimental/*.cpp")
+    list(APPEND TEST_SOURCES ${OPT_TESTS})
+endif()
+
+add_executable(
+  itmoscript_tests
+  ${TEST_SOURCES}
 )
 
 target_compile_definitions(itmoscript_tests

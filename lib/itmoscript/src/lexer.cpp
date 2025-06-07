@@ -221,22 +221,49 @@ Token Lexer::number() {
 
 Token Lexer::string() {
     int start_col = column_;
+
     get();
-    size_t start = pos_;
+
+    std::string value;
     while (pos_ < source_.size() && peek() != '"') {
-        if (peek() == '\\') {
-            get();
-            get();
-        } else
-            get();
+        char c = get();
+        if (c == '\\') {
+            if (pos_ >= source_.size()) break;
+            char esc = get();
+            switch (esc) {
+                case 'n':
+                    value.push_back('\n');
+                    break;
+                case 't':
+                    value.push_back('\t');
+                    break;
+                case 'r':
+                    value.push_back('\r');
+                    break;
+                case '\\':
+                    value.push_back('\\');
+                    break;
+                case '"':
+                    value.push_back('"');
+                    break;
+                default:
+
+                    value.push_back(esc);
+                    break;
+            }
+        } else {
+            value.push_back(c);
+        }
     }
-    std::string str = source_.substr(start, pos_ - start);
-    if (peek() == '"')
+
+    if (peek() == '"') {
         get();
-    else
+    } else {
         throw std::runtime_error("Unterminated string at line " +
                                  std::to_string(line_));
-    return {TokenType::String, str, line_, start_col};
+    }
+
+    return {TokenType::String, value, line_, start_col};
 }
 
 }  // namespace itmoscript
